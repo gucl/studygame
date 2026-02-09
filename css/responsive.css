@@ -1,0 +1,193 @@
+/* 手机屏幕适配 */
+@media (max-width: 480px) {
+    .header h1 {
+        font-size: 20px;
+    }
+    
+    .user-info {
+        font-size: 14px;
+    }
+    
+    .main-content {
+        padding: 15px;
+    }
+    
+    .game-entrances {
+        margin-bottom: 20px;
+    }
+    
+    .game-btn {
+        width: 80px;
+        height: 80px;
+        font-size: 16px;
+    }
+    
+    .func-btn {
+        width: 70px;
+        height: 70px;
+        font-size: 12px;
+    }
+    
+    .modal {
+        padding: 15px;
+        width: 95%;
+    }
+    
+    .idiom-display {
+        gap: 10px;
+    }
+    
+    .idiom-char {
+        width: 50px;
+        height: 50px;
+        font-size: 20px;
+    }
+    
+    .char-option {
+        height: 50px;
+        font-size: 20px;
+    }
+    
+    .char-options {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+    }
+    
+    .question-display {
+        font-size: 28px;
+        padding: 15px;
+    }
+    
+    .word-display {
+        font-size: 24px;
+        padding: 15px;
+    }
+    
+    .answer-input {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .score-info {
+        font-size: 16px;
+    }
+    
+    .store-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .wish-actions {
+        flex-direction: column;
+    }
+}
+
+/* 平板屏幕适配 */
+@media (min-width: 481px) and (max-width: 768px) {
+    .game-btn {
+        width: 120px;
+        height: 120px;
+        font-size: 20px;
+    }
+    
+    .func-btn {
+        width: 90px;
+        height: 90px;
+        font-size: 16px;
+    }
+    
+    .idiom-char {
+        width: 70px;
+        height: 70px;
+        font-size: 28px;
+    }
+    
+    .char-option {
+        height: 70px;
+        font-size: 28px;
+    }
+    
+    .question-display {
+        font-size: 42px;
+    }
+    
+    .word-display {
+        font-size: 36px;
+    }
+}
+
+/* 横屏模式适配 */
+@media (orientation: landscape) {
+    .game-entrances {
+        flex-wrap: wrap;
+        gap: 20px;
+    }
+    
+    .function-buttons {
+        flex-wrap: wrap;
+        gap: 20px;
+    }
+    
+    .game-content {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    
+    .idiom-display {
+        order: 1;
+    }
+    
+    .char-options {
+        order: 2;
+    }
+    
+    .idiom-info {
+        order: 3;
+        width: 100%;
+    }
+    
+    .modal {
+        max-width: 600px;
+    }
+    
+    .store-items {
+        max-height: 50vh;
+        overflow-y: auto;
+    }
+}
+
+/* 高分辨率屏幕适配 */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    .game-btn,
+    .func-btn {
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2), 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+}
+
+/* 打印样式 */
+@media print {
+    .screen:not(.active) {
+        display: none;
+    }
+    
+    .modal-container {
+        display: none;
+    }
+    
+    .header,
+    .game-header {
+        background-color: white;
+        color: black;
+        border-bottom: 2px solid #333;
+    }
+    
+    .game-btn,
+    .func-btn,
+    .btn {
+        border: 2px solid #333;
+        background-color: white;
+        color: black;
+    }
+}

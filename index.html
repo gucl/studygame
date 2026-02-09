@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>小学生学习小游戏</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/responsive.css">
+</head>
+<body>
+    <div id="app">
+        <!-- 主界面 -->
+        <div id="main-screen" class="screen active">
+            <header class="header">
+                <h1>学习小游戏</h1>
+                <div class="user-info">
+                    <span class="points">积分: <span id="total-points">0</span></span>
+                </div>
+            </header>
+            
+            <main class="main-content">
+                <!-- 游戏入口 -->
+                <div class="game-entrances">
+                    <button id="chinese-game" class="game-btn chinese">
+                        <i class="fas fa-book"></i>
+                        <span>语文</span>
+                    </button>
+                    <button id="math-game" class="game-btn math">
+                        <i class="fas fa-calculator"></i>
+                        <span>数学</span>
+                    </button>
+                    <button id="english-game" class="game-btn english">
+                        <i class="fas fa-language"></i>
+                        <span>英语</span>
+                    </button>
+                </div>
+                
+                <!-- 功能按钮 -->
+                <div class="function-buttons">
+                    <button id="settings-btn" class="func-btn">
+                        <i class="fas fa-cog"></i>
+                        <span>设置</span>
+                    </button>
+                    <button id="store-btn" class="func-btn">
+                        <i class="fas fa-shopping-cart"></i>
+                        <span>商店</span>
+                    </button>
+                    <button id="wish-btn" class="func-btn">
+                        <i class="fas fa-star"></i>
+                        <span>许愿</span>
+                    </button>
+                </div>
+            </main>
+        </div>
+        
+        <!-- 游戏界面（通用结构） -->
+        <div id="game-screen" class="screen">
+            <header class="game-header">
+                <button id="exit-game" class="exit-btn"><i class="fas fa-arrow-left"></i></button>
+                <h2 id="game-title">游戏标题</h2>
+                <span class="game-points">+<span id="game-points">0</span></span>
+            </header>
+            
+            <main id="game-content" class="game-content">
+                <!-- 游戏内容将通过JS动态加载 -->
+            </main>
+        </div>
+        
+        <!-- 弹出层容器 -->
+        <div id="modal-container" class="modal-container">
+            <!-- 各种弹出层将通过JS动态加载 -->
+        </div>
+    </div>
+    
+    <!-- JavaScript文件 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+    <script src="js/utils/storage.js"></script>
+    <script src="js/utils/config.js"></script>
+    <script src="js/utils/helper.js"></script>
+    <script src="js/game/chinese.js"></script>
+    <script src="js/game/math.js"></script>
+    <script src="js/game/english.js"></script>
+    <script src="js/system/settings.js"></script>
+    <script src="js/system/store.js"></script>
+    <script src="js/system/wish.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
