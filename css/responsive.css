@@ -130,9 +130,9 @@
     }
     
     .game-content {
-        flex-direction: row;
-        flex-wrap: wrap;
+        flex-direction: column;
         justify-content: center;
+        align-items: center;
     }
     
     .idiom-display {

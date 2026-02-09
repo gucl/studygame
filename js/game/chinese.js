@@ -50,6 +50,8 @@ const ChineseGame = {
     // 当前游戏状态
     currentGame: null,
     userAnswer: [],
+    // 跟踪所有字符选项的状态
+    charOptions: [],
 
     // 用于存储事件监听器的引用，以便后续移除
     eventListener: null,
@@ -75,6 +77,8 @@ const ChineseGame = {
             // 初始化用户答案数组，包含与成语长度相同的undefined元素
             const idiomLength = this.currentGame.idiom.length;
             this.userAnswer = new Array(idiomLength).fill(undefined);
+            // 重置字符选项状态数组
+            this.charOptions = [];
 
             // 渲染游戏界面
             this.render();
@@ -118,36 +122,67 @@ const ChineseGame = {
         const allChars = [...idiomChars, ...distractorChars];
         const shuffledChars = Helper.shuffleArray(allChars);
 
-        // 渲染基础界面
-        gameContent.innerHTML = `
-            <div class="chinese-game">
-                <div class="daily-progress">
+        // 初始化字符选项状态数组
+        this.charOptions = shuffledChars.map((char, index) => ({
+            id: index,
+            char: char,
+            used: false,
+            position: null
+        }));
+
+        // 使用最基础的HTML结构，确保字符居中
+        const basicHtml = `
+            <div style="width: 100%; max-width: 600px; margin: 0 auto; padding: 20px; box-sizing: border-box;">
+                <div class="daily-progress" style="width: 100%; margin-bottom: 20px; padding: 10px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef; text-align: center; font-size: 16px; color: #495057;">
                     <p>今日任务进度：加载中...</p>
                 </div>
                 
-                <div class="idiom-display">
+                <div style="display: flex; gap: 15px; margin-bottom: 20px; justify-content: center; align-items: center;">
                     ${idiomChars.map((char, index) => `
-                        <div class="idiom-char" data-index="${index}">
+                        <div data-index="${index}" style="width: 60px; height: 60px; border: 2px solid #4a90e2; border-radius: 10px; background-color: #f8f9fa; font-size: 24px; font-weight: bold; font-family: Arial, 'Microsoft YaHei', sans-serif; color: #333; text-align: center; line-height: 60px; padding: 0; margin: 0; box-sizing: border-box;">
                             ${this.userAnswer[index] || ''}
                         </div>
                     `).join('')}
                 </div>
                 
-                <div class="char-options">
-                    ${shuffledChars.map(char => `
-                        <div class="char-option" data-char="${char}">${char}</div>
+                <div style="display: flex; justify-content: center; margin: 20px 0;">
+                    <button id="backspace-char" style="padding: 10px 20px; font-size: 16px; border-radius: 20px; cursor: pointer; border: none; background-color: #9e9e9e; color: white; font-weight: bold; transition: all 0.3s ease;">
+                        ← 回退
+                    </button>
+                </div>
+                
+                <div class="char-options" style="display: grid; grid-template-columns: repeat(4, 60px); grid-auto-rows: 60px; gap: 10px; margin: 20px auto; padding: 10px; background-color: #f5f5f5; border-radius: 10px; justify-items: center; max-width: 300px;">
+                    ${this.charOptions.map(option => `
+                        <div data-id="${option.id}" data-char="${option.char}" style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; border: 2px solid #4a90e2; border-radius: 10px; font-size: 24px; font-weight: bold; background-color: white; cursor: pointer; transition: all 0.3s ease; box-sizing: border-box; font-family: Arial, 'Microsoft YaHei', sans-serif; color: #333;">
+                            ${option.char}
+                        </div>
                     `).join('')}
                 </div>
                 
-                <div class="idiom-info" style="display: none;">
+                <div class="idiom-info" style="display: none; margin: 20px auto; padding: 15px; background-color: #e3f2fd; border-radius: 10px; border: 1px solid #bbdefb; max-height: 200px; overflow-y: auto; max-width: 90%;">
                     <h3>${this.currentGame.idiom} (${this.currentGame.pinyin})</h3>
                     <p><strong>意思：</strong>${this.currentGame.meaning}</p>
                     <p><strong>典故：</strong>${this.currentGame.allusion}</p>
                     <p><strong>例句：</strong>${this.currentGame.example}</p>
-                    <button id="next-idiom" class="btn btn-primary">下一个</button>
+                    <button id="next-idiom" style="padding: 10px 20px; font-size: 16px; border-radius: 20px; cursor: pointer; border: none; background-color: #4a90e2; color: white; font-weight: bold; transition: all 0.3s ease; margin-top: 10px;">
+                        下一个
+                    </button>
                 </div>
             </div>
         `;
+
+        // 直接设置HTML内容
+        gameContent.innerHTML = basicHtml;
+
+        // 如果有已选择的字符，重新隐藏它们
+        this.charOptions.forEach(option => {
+            if (option.used) {
+                const el = document.querySelector(`[data-id="${option.id}"]`);
+                if (el) {
+                    el.style.display = 'none';
+                }
+            }
+        });
 
         // 异步更新每日任务进度
         this.updateDailyProgress();
@@ -164,10 +199,21 @@ const ChineseGame = {
             const progressEl = document.querySelector('.daily-progress p');
 
             if (progressEl) {
-                progressEl.textContent = `今日任务进度：${tasks.chinese.completed}/${tasks.chinese.total} 个成语 (奖励 ${config.rewardPoints} 积分)`;
+                if (tasks && tasks.chinese && config) {
+                    progressEl.textContent = `今日任务进度：${tasks.chinese.completed}/${tasks.chinese.total} 个成语 (奖励 ${config.rewardPoints} 积分)`;
+                } else {
+                    progressEl.textContent = '今日任务进度：加载中...';
+                    // 重试加载
+                    setTimeout(() => this.updateDailyProgress(), 1000);
+                }
             }
         } catch (error) {
             console.error('Failed to update daily progress:', error);
+            // 出错时显示友好信息
+            const progressEl = document.querySelector('.daily-progress p');
+            if (progressEl) {
+                progressEl.textContent = '今日任务进度：加载中...';
+            }
         }
     },
 
@@ -183,14 +229,23 @@ const ChineseGame = {
 
         // 创建新的事件监听器
         this.eventListener = (e) => {
-            if (e.target.classList.contains('char-option')) {
+            if (e.target.hasAttribute('data-id') && e.target.hasAttribute('data-char')) {
+                const id = parseInt(e.target.dataset.id);
                 const char = e.target.dataset.char;
-                this.selectChar(char);
+                this.selectChar(id, char);
             }
         };
 
         // 添加新的事件监听器
         gameContent.addEventListener('click', this.eventListener);
+
+        // 单个字符回退功能
+        const backspaceBtn = document.getElementById('backspace-char');
+        if (backspaceBtn) {
+            backspaceBtn.addEventListener('click', () => {
+                this.backspaceChar();
+            });
+        }
 
         // 下一个成语
         const nextBtn = document.getElementById('next-idiom');
@@ -202,7 +257,7 @@ const ChineseGame = {
     },
 
     // 选择字符
-    selectChar(char) {
+    selectChar(id, char) {
         // 找到第一个空位置
         const emptyIndex = this.userAnswer.indexOf(undefined);
         if (emptyIndex === -1) return;
@@ -211,19 +266,93 @@ const ChineseGame = {
         this.userAnswer[emptyIndex] = char;
 
         // 更新界面
-        const charEl = document.querySelector(`.idiom-char[data-index="${emptyIndex}"]`);
+        const charEl = document.querySelector(`[data-index="${emptyIndex}"]`);
         charEl.textContent = char;
-        charEl.classList.add('filled');
 
-        // 隐藏已选择的字符
-        const optionEl = document.querySelector(`.char-option[data-char="${char}"]`);
-        optionEl.style.display = 'none';
+        // 更新背景颜色（已填充状态）
+        charEl.style.backgroundColor = '#e3f2fd';
+
+        // 更新字符选项状态
+        const option = this.charOptions.find(opt => opt.id === id);
+        if (option) {
+            option.used = true;
+            option.position = emptyIndex;
+
+            // 隐藏已选择的字符
+            const optionEl = document.querySelector(`[data-id="${id}"]`);
+            if (optionEl) {
+                optionEl.style.display = 'none';
+            }
+        }
 
         // 检查是否完成（所有位置都已填充）
         const allFilled = this.userAnswer.every(char => char !== undefined);
         if (allFilled) {
             this.checkAnswer();
         }
+    },
+
+    // 单个字符回退功能
+    backspaceChar() {
+        // 找到最后一个已填充的字符索引
+        let lastFilledIndex = -1;
+        for (let i = this.userAnswer.length - 1; i >= 0; i--) {
+            if (this.userAnswer[i] !== undefined) {
+                lastFilledIndex = i;
+                break;
+            }
+        }
+
+        // 如果没有已填充的字符，则返回
+        if (lastFilledIndex === -1) return;
+
+        // 找到对应的字符选项
+        const option = this.charOptions.find(opt => opt.used && opt.position === lastFilledIndex);
+        if (option) {
+            // 更新字符选项状态
+            option.used = false;
+            option.position = null;
+
+            // 显示被隐藏的字符选项
+            const optionEl = document.querySelector(`[data-id="${option.id}"]`);
+            if (optionEl) {
+                optionEl.style.display = 'flex';
+            }
+        }
+
+        // 清空用户答案
+        this.userAnswer[lastFilledIndex] = undefined;
+
+        // 更新界面 - 完全重置元素样式
+        const charEl = document.querySelector(`[data-index="${lastFilledIndex}"]`);
+        if (charEl) {
+            // 清空文本
+            charEl.textContent = '';
+
+            // 完全重置所有样式，确保居中
+            charEl.style.width = '60px';
+            charEl.style.height = '60px';
+            charEl.style.border = '2px solid #4a90e2';
+            charEl.style.borderRadius = '10px';
+            charEl.style.backgroundColor = '#f8f9fa';
+            charEl.style.fontSize = '24px';
+            charEl.style.fontWeight = 'bold';
+            charEl.style.fontFamily = 'Arial, "Microsoft YaHei", sans-serif';
+            charEl.style.color = '#333';
+            charEl.style.textAlign = 'center';
+            charEl.style.lineHeight = '60px';
+            charEl.style.padding = '0';
+            charEl.style.margin = '0';
+            charEl.style.boxSizing = 'border-box';
+        }
+
+        // 移除修改按钮（如果存在）
+        const modifyBtn = document.getElementById('modify-answer');
+        if (modifyBtn) {
+            modifyBtn.remove();
+        }
+
+        console.log('回退成功：删除了第', lastFilledIndex + 1, '个字符');
     },
 
     // 检查答案
@@ -264,13 +393,76 @@ const ChineseGame = {
             document.querySelector('.idiom-info').style.display = 'block';
         } else {
             // 显示错误反馈
-            Helper.showMessage('回答错误，请重新尝试！', 'error');
+            Helper.showMessage('回答错误，请修改！', 'error');
 
-            // 重置游戏 - 确保this上下文正确
-            const self = this;
-            setTimeout(() => {
-                self.init();
-            }, 1500);
+            // 高亮显示错误的字符
+            const idiomChars = this.currentGame.idiom.split('');
+            this.userAnswer.forEach((char, index) => {
+                if (char !== idiomChars[index]) {
+                    const charEl = document.querySelector(`[data-index="${index}"]`);
+                    if (charEl) {
+                        charEl.style.borderColor = '#ff4444';
+                        charEl.style.backgroundColor = '#ffebee';
+                    }
+                }
+            });
+
+            // 显示修改按钮
+            const charOptionsContainer = document.querySelector('.char-options');
+
+            // 确保容器存在
+            if (charOptionsContainer) {
+                // 添加修改按钮
+                const modifyBtn = document.createElement('button');
+                modifyBtn.id = 'modify-answer';
+                modifyBtn.className = 'btn btn-primary';
+                modifyBtn.textContent = '修改答案';
+                modifyBtn.style.marginTop = '20px';
+                modifyBtn.style.padding = '10px 20px';
+                modifyBtn.style.borderRadius = '20px';
+                modifyBtn.style.border = 'none';
+                modifyBtn.style.cursor = 'pointer';
+                modifyBtn.style.backgroundColor = '#4a90e2';
+                modifyBtn.style.color = 'white';
+                modifyBtn.style.fontSize = '16px';
+
+                // 添加到容器的末尾
+                charOptionsContainer.appendChild(modifyBtn);
+
+                console.log('修改按钮已添加');
+
+                // 添加修改按钮事件监听
+                modifyBtn.addEventListener('click', () => {
+                    this.init();
+                });
+
+                // 添加已选字符点击重置功能
+                const idiomCharEls = document.querySelectorAll('.idiom-char');
+                idiomCharEls.forEach((el, index) => {
+                    el.addEventListener('click', () => {
+                        if (this.userAnswer[index]) {
+                            // 显示被隐藏的字符选项
+                            const char = this.userAnswer[index];
+                            const optionEl = document.querySelector(`.char-option[data-char="${char}"]`);
+                            if (optionEl) {
+                                optionEl.style.display = 'inline-block';
+                            }
+
+                            // 清空用户答案
+                            this.userAnswer[index] = undefined;
+                            el.textContent = '';
+                            el.classList.remove('filled', 'error');
+
+                            // 移除修改按钮
+                            if (modifyBtn) {
+                                modifyBtn.remove();
+                            }
+                        }
+                    });
+                });
+            } else {
+                console.error('未找到char-options容器');
+            }
         }
     }
 };
