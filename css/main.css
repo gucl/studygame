@@ -155,12 +155,12 @@ body {
 }
 
 .tab-btn {
-    padding: 8px 12px;
+    padding: 1vh 2vw;
     border: 2px solid #4a90e2;
     border-radius: 15px;
     background-color: white;
     color: #4a90e2;
-    font-size: 12px;
+    font-size: 2.5vw;
     font-weight: bold;
     cursor: pointer;
     transition: all 0.3s ease;
@@ -198,14 +198,14 @@ body {
 
 .game-content {
     flex: 1;
-    padding: 20px;
+    padding: 1vw;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
-    gap: 20px;
+    gap: 1vh;
     min-height: 0;
-    overflow-y: auto;
+    overflow-y: hidden;
 }
 
 /* 弹出层样式 */
@@ -260,13 +260,18 @@ body {
 
 /* 按钮通用样式 */
 .btn {
-    padding: 10px 20px;
+    padding: 1.5vh 4vw;
     border: none;
     border-radius: 8px;
-    font-size: 16px;
+    font-size: 3vw;
     font-weight: bold;
     cursor: pointer;
     transition: all 0.3s ease;
+    max-width: 60vw;
+    min-width: 100px;
+    width: 80%;
+    margin: 1vh auto;
+    text-align: center;
 }
 
 .btn-primary {
@@ -447,9 +452,9 @@ body {
 .daily-progress p {
     color: #333;
     font-weight: bold;
-    margin-bottom: 8px;
+    margin-bottom: 0.5vh;
     text-align: center;
-    font-size: 14px;
+    font-size: 2.5vw;
 }
 
 .progress-bar {
@@ -542,10 +547,51 @@ body {
 }
 
 .answer-input {
+    margin: 1vh auto;
     display: flex;
+    flex-direction: column;
+    gap: 1vh;
+    width: 100%;
+    max-width: 320px;
+    justify-content: center;
+    align-items: center;
+}
+
+.answer-options {
+    margin-top: 20px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
     gap: 15px;
     width: 100%;
-    max-width: 300px;
+    max-width: 320px;
+}
+
+.option-btn {
+    padding: 15px 20px;
+    border: 2px solid #d1d5db;
+    border-radius: 12px;
+    background-color: white;
+    font-size: 24px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: #374151;
+}
+
+.option-btn:hover {
+    border-color: #60a5fa;
+    background-color: #eff6ff;
+}
+
+.option-btn.selected {
+    border-color: #3b82f6;
+    background-color: #3b82f6;
+    color: white;
+}
+
+.option-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.7;
 }
 
 .answer-input input {
@@ -559,22 +605,111 @@ body {
 
 /* 英语游戏样式 */
 .english-game {
-    width: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 20px;
+    width: 95vw;
+    max-width: 800px;
+    max-height: 90vh;
+    margin: 5px auto 0;
+    padding: 1vw;
+    gap: 0.5vh;
+    overflow: hidden;
+}
+
+/* 答题区样式 */
+.answer-area {
+    display: flex;
+    gap: 0.5vw;
+    justify-content: center;
+    margin: 0.5vh 0;
+    width: 100%;
+    flex-wrap: wrap;
+    padding: 0.5vw;
+}
+
+.answer-slot {
+    width: calc(75vw / 8); /* 根据屏幕宽度动态计算，最多一行显示8个 */
+    height: calc(75vw / 8);
+    max-width: 60px;
+    max-height: 60px;
+    min-width: 30px;
+    min-height: 30px;
+    border: 2px solid #4a90e2;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: calc(75vw / 16); /* 字体大小为槽位宽度的一半 */
+    max-font-size: 24px;
+    font-weight: bold;
+    background-color: #f8f9fa;
+    transition: all 0.3s ease;
+}
+
+/* 字符选择池样式 */
+.char-pool {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 0.8vw;
+    width: 90vw;
+    max-width: 650px;
+    margin: 0.5vh 0;
+    padding: 1vw;
+    background-color: #f8f9fa;
+    border-radius: 12px;
+    border: 1px solid #e9ecef;
+}
+
+.char-pool .char-option {
+    width: calc(75vw / 8); /* 与答题槽位保持相同的宽度计算方式 */
+    height: calc(75vw / 8);
+    max-width: 55px;
+    max-height: 55px;
+    min-width: 30px;
+    min-height: 30px;
+    border: 2px solid #4a90e2;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: calc(75vw / 16); /* 字体大小与答题槽位保持一致 */
+    max-font-size: 20px;
+    font-weight: bold;
+    background-color: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    user-select: none;
+}
+
+.char-pool .char-option:hover {
+    background-color: #e3f2fd;
+    border-color: #1976d2;
+    transform: translateY(-2px);
+}
+
+.char-pool .char-option.selected {
+    background-color: #ffebee;
+    border-color: #ff4444;
+    color: #d32f2f;
+    transform: translateY(-2px);
+}
+
+.char-pool .char-option:active {
+    transform: translateY(0);
 }
 
 .word-display {
-    font-size: 32px;
+    font-size: 6vw;
     font-weight: bold;
-    padding: 20px;
+    padding: 2vw;
     background-color: #f8f9fa;
     border-radius: 10px;
     border: 2px solid #4a90e2;
-    min-width: 200px;
+    min-width: 50vw;
+    max-width: 80vw;
     text-align: center;
+    margin: 1vh 0;
 }
 
 /* 设置界面样式 */

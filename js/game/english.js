@@ -19,11 +19,26 @@ const EnglishGame = {
         { id: 15, english: 'flower', chinese: '花' }
     ],
 
+    // 干扰字符（英文）
+    englishDistractors: 'abcdefghijklmnopqrstuvwxyz',
+    
+    // 干扰字符（中文）
+    chineseDistractors: '人山水火土日月木金王田大小多少上下左右前后天地你我他',
+
     // 当前游戏状态
     currentWord: null,
     currentMode: 'enToZh', // enToZh: 英译中, zhToEn: 中译英
     score: 0,
     totalWords: 0,
+    
+    // 用户答案
+    userAnswer: [],
+    
+    // 字符选项
+    charOptions: [],
+    
+    // 事件监听器引用
+    eventListener: null,
 
     // 初始化游戏
     async init(mode = 'enToZh') {
@@ -65,13 +80,88 @@ const EnglishGame = {
 
         // 根据当前模式决定是英译汉还是汉译英
         this.isEnglishToChinese = this.currentMode === 'enToZh';
+        
+        // 生成字符选项
+        this.generateCharOptions();
+        
+        // 初始化用户答案
+        const answerLength = this.isEnglishToChinese ? this.currentWord.chinese.length : this.currentWord.english.length;
+        this.userAnswer = new Array(answerLength).fill(undefined);
+    },
+    
+    // 生成字符选项
+    generateCharOptions() {
+        const correctAnswer = this.isEnglishToChinese ? this.currentWord.chinese : this.currentWord.english;
+        const correctChars = correctAnswer.split('');
+        
+        // 固定字符池大小为16个字符（两行8列）
+        const totalChars = 16;
+        
+        // 字符池
+        let charPool = [...correctChars];
+        
+        // 选择干扰字符源
+        const distractorSource = this.isEnglishToChinese ? this.chineseDistractors : this.englishDistractors;
+        
+        // 添加干扰字符
+        while (charPool.length < totalChars) {
+            const randomIndex = Math.floor(Math.random() * distractorSource.length);
+            const distractor = distractorSource[randomIndex];
+            
+            // 确保干扰字符不重复且不是正确答案的一部分
+            if (!charPool.includes(distractor)) {
+                charPool.push(distractor);
+            }
+        }
+        
+        // 如果字符池超过16个，随机选择16个（保留所有正确字符）
+        if (charPool.length > totalChars) {
+            // 确保保留所有正确字符
+            const selectedChars = [...correctChars];
+            const remainingChars = charPool.filter(char => !selectedChars.includes(char));
+            
+            // 随机选择剩余的字符直到总数为16
+            while (selectedChars.length < totalChars && remainingChars.length > 0) {
+                const randomIndex = Math.floor(Math.random() * remainingChars.length);
+                const randomChar = remainingChars.splice(randomIndex, 1)[0];
+                selectedChars.push(randomChar);
+            }
+            
+            charPool = selectedChars;
+        }
+        
+        // 打乱字符顺序
+        const shuffledChars = Helper.shuffleArray(charPool);
+        
+        // 生成字符选项对象
+        this.charOptions = shuffledChars.map((char, index) => ({
+            id: index,
+            char: char,
+            selected: false,
+            position: null
+        }));
     },
 
     // 渲染游戏界面
     render() {
         const gameContent = document.getElementById('game-content');
         const question = this.isEnglishToChinese ? this.currentWord.english : this.currentWord.chinese;
-        const placeholder = this.isEnglishToChinese ? '请输入中文意思' : '请输入英文单词';
+        const correctAnswer = this.isEnglishToChinese ? this.currentWord.chinese : this.currentWord.english;
+        const answerLength = correctAnswer.length;
+
+        // 创建答题区
+        let answerAreaHtml = '<div class="answer-area">';
+        for (let i = 0; i < answerLength; i++) {
+            answerAreaHtml += `<div class="answer-slot" data-index="${i}">${this.userAnswer[i] || ''}</div>`;
+        }
+        answerAreaHtml += '</div>';
+        
+        // 创建字符选择池
+        let charPoolHtml = '<div class="char-pool">';
+        this.charOptions.forEach(option => {
+            charPoolHtml += `<div class="char-option ${option.selected ? 'selected' : ''}" data-id="${option.id}" data-char="${option.char}">${option.char}</div>`;
+        });
+        charPoolHtml += '</div>';
 
         gameContent.innerHTML = `
             <div class="english-game">
@@ -99,8 +189,10 @@ const EnglishGame = {
                     <h2>${question}</h2>
                 </div>
                 
+                ${answerAreaHtml}
+                ${charPoolHtml}
+                
                 <div class="answer-input">
-                    <input type="text" id="english-answer" placeholder="${placeholder}" autofocus>
                     <button id="submit-answer" class="btn btn-primary">提交</button>
                 </div>
             </div>
@@ -127,18 +219,73 @@ const EnglishGame = {
 
         // 提交答案
         const submitBtn = document.getElementById('submit-answer');
-        const answerInput = document.getElementById('english-answer');
-
         submitBtn.addEventListener('click', () => {
             this.checkAnswer();
         });
-
-        // 回车键提交
-        answerInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                this.checkAnswer();
+        
+        // 字符选择事件（使用事件委托）
+        const gameContent = document.getElementById('game-content');
+        
+        // 先移除旧的事件监听器
+        if (this.eventListener) {
+            gameContent.removeEventListener('click', this.eventListener);
+        }
+        
+        // 创建新的事件监听器
+        this.eventListener = (e) => {
+            if (e.target.classList.contains('char-option')) {
+                const id = parseInt(e.target.dataset.id);
+                const char = e.target.dataset.char;
+                this.selectChar(id, char);
             }
-        });
+        };
+        
+        // 添加新的事件监听器
+        gameContent.addEventListener('click', this.eventListener);
+    },
+    
+    // 选择字符
+    selectChar(id, char) {
+        // 更新字符选项状态
+        const option = this.charOptions.find(opt => opt.id === id);
+        if (option) {
+            // 切换选择状态
+            option.selected = !option.selected;
+            
+            // 更新界面样式
+            const optionEl = document.querySelector(`[data-id="${id}"]`);
+            optionEl.classList.toggle('selected');
+            
+            if (option.selected) {
+                // 找到第一个空位置并填充字符
+                const emptyIndex = this.userAnswer.indexOf(undefined);
+                if (emptyIndex !== -1) {
+                    // 填充字符
+                    this.userAnswer[emptyIndex] = char;
+                    option.position = emptyIndex;
+                    
+                    // 更新界面
+                    const slotEl = document.querySelector(`[data-index="${emptyIndex}"]`);
+                    slotEl.textContent = char;
+                } else {
+                    // 没有空位置，取消选择
+                    option.selected = false;
+                    optionEl.classList.remove('selected');
+                }
+            } else {
+                // 移除答题区对应位置的字符
+                if (option.position !== null) {
+                    this.userAnswer[option.position] = undefined;
+                    
+                    // 更新界面
+                    const slotEl = document.querySelector(`[data-index="${option.position}"]`);
+                    slotEl.textContent = '';
+                    
+                    // 重置位置
+                    option.position = null;
+                }
+            }
+        }
     },
 
     // 更新每日进度显示
@@ -171,7 +318,13 @@ const EnglishGame = {
 
     // 检查答案
     async checkAnswer() {
-        const userAnswer = document.getElementById('english-answer').value.trim();
+        // 检查是否所有位置都已填满
+        if (this.userAnswer.includes(undefined)) {
+            Helper.showMessage('请填满所有答案位置', 'warning');
+            return;
+        }
+        
+        const userAnswer = this.userAnswer.join('');
         const correctAnswer = this.isEnglishToChinese ? this.currentWord.chinese : this.currentWord.english;
 
         // 不区分大小写

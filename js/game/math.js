@@ -4,6 +4,7 @@ const MathGame = {
     currentOperation: 'addition', // 当前运算类型
     currentQuestion: null,
     currentAnswer: null,
+    currentOptions: [], // 存储选项
     score: 0,
     totalQuestions: 0,
 
@@ -46,6 +47,37 @@ const MathGame = {
         subtraction: '-',
         multiplication: '*',
         division: '/'
+    },
+
+    // 生成选项
+    generateOptions(answer) {
+        const options = [answer];
+        const difficulty = Config.getSubjectConfig('math').then(config => config.difficulty);
+        let range;
+
+        // 根据答案大小设置干扰选项的范围
+        if (answer <= 10) {
+            range = 5;
+        } else if (answer <= 30) {
+            range = 10;
+        } else if (answer <= 50) {
+            range = 15;
+        } else {
+            range = 20;
+        }
+
+        // 生成3个不同的干扰选项
+        while (options.length < 4) {
+            let offset = Math.floor(Math.random() * (range * 2)) - range;
+            if (offset === 0) offset = 1; // 确保不是0
+            const option = answer + offset;
+            if (option > 0 && !options.includes(option)) {
+                options.push(option);
+            }
+        }
+
+        // 打乱选项顺序
+        this.currentOptions = options.sort(() => Math.random() - 0.5);
     },
 
     // 生成题目
@@ -99,6 +131,9 @@ const MathGame = {
 
         this.currentQuestion = `${num1} ${operationSymbol} ${num2} = ?`;
         this.currentAnswer = answer;
+
+        // 生成4个选项（1个正确答案，3个干扰选项）
+        this.generateOptions(answer);
     },
 
     // 渲染游戏界面
@@ -139,10 +174,14 @@ const MathGame = {
                     <h2>${this.currentQuestion}</h2>
                 </div>
                 
-                <div class="answer-input">
-                    <input type="number" id="math-answer" placeholder="请输入答案" autofocus>
-                    <button id="submit-answer" class="btn btn-primary">提交</button>
+                <div class="answer-options">
+                    ${this.currentOptions.map((option, index) => `
+                        <button class="option-btn" data-option="${option}">
+                            ${option}
+                        </button>
+                    `).join('')}
                 </div>
+                <button id="submit-answer" class="btn btn-primary">提交</button>
             </div>
         `;
 
@@ -165,19 +204,20 @@ const MathGame = {
             });
         });
 
-        // 提交答案
-        const submitBtn = document.getElementById('submit-answer');
-        const answerInput = document.getElementById('math-answer');
-
-        submitBtn.addEventListener('click', () => {
-            this.checkAnswer();
+        // 选项选择
+        document.querySelectorAll('.option-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                // 移除其他选项的选中状态
+                document.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'));
+                // 添加当前选项的选中状态
+                btn.classList.add('selected');
+            });
         });
 
-        // 回车键提交
-        answerInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                this.checkAnswer();
-            }
+        // 提交答案
+        const submitBtn = document.getElementById('submit-answer');
+        submitBtn.addEventListener('click', () => {
+            this.checkAnswer();
         });
     },
 
@@ -213,7 +253,14 @@ const MathGame = {
 
     // 检查答案
     async checkAnswer() {
-        const userAnswer = parseInt(document.getElementById('math-answer').value);
+        // 获取选中的选项
+        const selectedBtn = document.querySelector('.option-btn.selected');
+        if (!selectedBtn) {
+            Helper.showMessage('请先选择一个答案', 'warning');
+            return;
+        }
+
+        const userAnswer = parseInt(selectedBtn.dataset.option);
         const correct = userAnswer === this.currentAnswer;
 
         if (correct) {
