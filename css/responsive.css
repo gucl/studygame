@@ -96,7 +96,12 @@
     
     /* 游戏容器样式调整 */
     .math-game,
-    .english-game,
+    .english-game {
+        flex-direction: column;
+        align-items: center;
+        flex-wrap: nowrap;
+        padding-bottom: 100px; /* 为键盘预留空间 */
+    }
     .chinese-game {
         flex-direction: row;
         flex-wrap: nowrap;
