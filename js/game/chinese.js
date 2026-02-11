@@ -52,6 +52,9 @@ const ChineseGame = {
     userAnswer: [],
     // 跟踪所有字符选项的状态
     charOptions: [],
+    // 错题相关
+    wrongAnswers: [],
+    isReviewMode: false,
 
     // 用于存储事件监听器的引用，以便后续移除
     eventListener: null,
@@ -61,6 +64,7 @@ const ChineseGame = {
         try {
             // 加载游戏配置
             const config = await Config.getSubjectConfig('chinese');
+            this.difficulty = config.difficulty || 'medium';
 
             // 验证配置结构
             if (!config) {
@@ -70,9 +74,69 @@ const ChineseGame = {
             // 初始化每日任务
             await Storage.initDailyTasks();
 
-            // 选择成语
-            const randomIndex = Math.floor(Math.random() * this.data.length);
-            this.currentGame = this.data[randomIndex];
+            // 检查是否完成了所有日常任务
+            const isDailyCompleted = await Storage.checkTaskCompletion('chinese');
+
+            // 检查是否需要进入错题复习模式
+            if (isDailyCompleted && !this.isReviewMode) {
+                // 获取今日错题
+                const wrongAnswers = await Storage.getTodayWrongAnswers('chinese');
+
+                if (wrongAnswers.length > 0) {
+                    // 进入错题复习模式
+                    this.isReviewMode = true;
+                    this.wrongAnswers = wrongAnswers;
+
+                    // 选择一道错题
+                    const randomIndex = Math.floor(Math.random() * this.wrongAnswers.length);
+                    const wrongAnswer = this.wrongAnswers[randomIndex];
+
+                    // 找到对应的成语
+                    this.currentGame = this.data.find(game => game.id === wrongAnswer.questionId);
+
+                    Helper.showMessage(`日常任务已完成，开始复习错题（共${wrongAnswers.length}题）`, 'info');
+                } else {
+                    // 没有错题，游戏结束
+                    this.gameOver('恭喜完成今日所有任务，且没有错题！');
+                    return;
+                }
+            } else if (!isDailyCompleted) {
+                // 正常模式，选择新的成语（不重复）
+                const tasks = await Storage.initDailyTasks();
+                const usedIdioms = tasks.chinese.usedIdioms || [];
+
+                // 过滤出未使用的成语
+                const availableIdioms = this.data.filter(game => !usedIdioms.includes(game.id));
+
+                // 如果所有成语都已使用，重新开始使用
+                let selectedIdiom;
+                if (availableIdioms.length > 0) {
+                    const randomIndex = Math.floor(Math.random() * availableIdioms.length);
+                    selectedIdiom = availableIdioms[randomIndex];
+                } else {
+                    // 如果没有可用成语，从所有成语中随机选择
+                    const randomIndex = Math.floor(Math.random() * this.data.length);
+                    selectedIdiom = this.data[randomIndex];
+                }
+
+                this.currentGame = selectedIdiom;
+            } else if (this.isReviewMode) {
+                // 继续错题复习模式
+                const wrongAnswers = await Storage.getTodayWrongAnswers('chinese');
+
+                if (wrongAnswers.length > 0) {
+                    // 选择一道错题
+                    const randomIndex = Math.floor(Math.random() * wrongAnswers.length);
+                    const wrongAnswer = wrongAnswers[randomIndex];
+
+                    // 找到对应的成语
+                    this.currentGame = this.data.find(game => game.id === wrongAnswer.questionId);
+                } else {
+                    // 所有错题都已答对，游戏结束
+                    this.gameOver('恭喜完成所有错题复习！');
+                    return;
+                }
+            }
 
             // 初始化用户答案数组，包含与成语长度相同的undefined元素
             const idiomLength = this.currentGame.idiom.length;
@@ -101,34 +165,62 @@ const ChineseGame = {
         const idiomChars = this.currentGame.idiom.split('');
         const idiomLength = idiomChars.length;
 
-        // 生成干扰字（数量与成语字符数相同）
-        const distractorChars = [];
-        const neededCount = idiomLength;
-        let addedCount = 0;
+        // 随机选择一个正确成语中的字显示在答题区
+        const randomIndex = Math.floor(Math.random() * idiomLength);
+        const randomChar = idiomChars[randomIndex];
 
-        // 从常用汉字库中随机选择干扰字，确保不包含成语中的字符
-        while (addedCount < neededCount) {
+        // 根据难度设置字符池总字数
+        const difficultySettings = {
+            'easy': 8,
+            'medium': 12,
+            'hard': 16
+        };
+        const totalChars = difficultySettings[this.difficulty] || 12;
+
+        // 生成字符池：包含成语中除了已经显示的随机正确字之外的所有字符，再加上一些干扰字
+        const charPool = [];
+
+        // 添加成语中除了已显示字之外的其他字符（允许重复）
+        idiomChars.forEach((char, index) => {
+            if (index !== randomIndex) {
+                charPool.push(char);
+            }
+        });
+
+        // 计算需要的干扰字数量
+        const neededDistractors = Math.max(0, totalChars - charPool.length);
+        let addedDistractors = 0;
+        let attempts = 0;
+        const maxAttempts = 1000;
+
+        // 从常用汉字库中随机选择干扰字，确保不包含已显示的随机正确字
+        while (addedDistractors < neededDistractors && attempts < maxAttempts) {
+            attempts++;
             const randomIndex = Math.floor(Math.random() * this.commonChars.length);
             const randomChar = this.commonChars[randomIndex];
 
-            // 如果该字符不在成语中且不在已选干扰字中，则添加
-            if (!idiomChars.includes(randomChar) && !distractorChars.includes(randomChar)) {
-                distractorChars.push(randomChar);
-                addedCount++;
+            // 确保干扰字不包含已显示的随机正确字，且不重复
+            if (randomChar !== idiomChars[randomIndex] && !charPool.includes(randomChar)) {
+                charPool.push(randomChar);
+                addedDistractors++;
             }
         }
 
-        // 混合成语字符和干扰字并打乱
-        const allChars = [...idiomChars, ...distractorChars];
-        const shuffledChars = Helper.shuffleArray(allChars);
+        // 打乱字符池
+        const shuffledChars = Helper.shuffleArray(charPool);
 
         // 初始化字符选项状态数组
         this.charOptions = shuffledChars.map((char, index) => ({
             id: index,
             char: char,
             used: false,
-            position: null
+            position: null,
+            selected: false
         }));
+
+        // 初始化用户答案数组，包含随机显示的一个字
+        this.userAnswer = new Array(idiomLength).fill(undefined);
+        this.userAnswer[randomIndex] = randomChar;
 
         // 使用最基础的HTML结构，确保字符居中
         const basicHtml = `
@@ -139,16 +231,10 @@ const ChineseGame = {
                 
                 <div style="display: flex; gap: 15px; margin-bottom: 20px; justify-content: center; align-items: center;">
                     ${idiomChars.map((char, index) => `
-                        <div data-index="${index}" style="width: 60px; height: 60px; border: 2px solid #4a90e2; border-radius: 10px; background-color: #f8f9fa; font-size: 24px; font-weight: bold; font-family: Arial, 'Microsoft YaHei', sans-serif; color: #333; text-align: center; line-height: 60px; padding: 0; margin: 0; box-sizing: border-box;">
+                        <div data-index="${index}" style="width: 60px; height: 60px; border: 2px solid #4a90e2; border-radius: 10px; background-color: #f8f9fa; font-size: 24px; font-weight: bold; font-family: Arial, 'Microsoft YaHei', sans-serif; color: ${index === randomIndex ? '#2e7d32' : '#333'}; text-align: center; line-height: 60px; padding: 0; margin: 0; box-sizing: border-box;">
                             ${this.userAnswer[index] || ''}
                         </div>
                     `).join('')}
-                </div>
-                
-                <div style="display: flex; justify-content: center; margin: 20px 0;">
-                    <button id="backspace-char" style="padding: 10px 20px; font-size: 16px; border-radius: 20px; cursor: pointer; border: none; background-color: #9e9e9e; color: white; font-weight: bold; transition: all 0.3s ease;">
-                        ← 回退
-                    </button>
                 </div>
                 
                 <div class="char-options" style="display: grid; grid-template-columns: repeat(4, 60px); grid-auto-rows: 60px; gap: 10px; margin: 20px auto; padding: 10px; background-color: #f5f5f5; border-radius: 10px; justify-items: center; max-width: 300px;">
@@ -174,16 +260,6 @@ const ChineseGame = {
         // 直接设置HTML内容
         gameContent.innerHTML = basicHtml;
 
-        // 如果有已选择的字符，重新隐藏它们
-        this.charOptions.forEach(option => {
-            if (option.used) {
-                const el = document.querySelector(`[data-id="${option.id}"]`);
-                if (el) {
-                    el.style.display = 'none';
-                }
-            }
-        });
-
         // 异步更新每日任务进度
         this.updateDailyProgress();
 
@@ -200,7 +276,8 @@ const ChineseGame = {
 
             if (progressEl) {
                 if (tasks && tasks.chinese && config) {
-                    progressEl.textContent = `今日任务进度：${tasks.chinese.completed}/${tasks.chinese.total} 个成语 (奖励 ${config.rewardPoints} 积分)`;
+                    // progressEl.textContent = `今日任务进度：${tasks.chinese.completed}/${tasks.chinese.total} 个成语 (奖励 ${config.rewardPoints} 积分)`;
+                    progressEl.textContent = `今日任务：完成${tasks.chinese.total}个成语,奖励 ${config.rewardPoints} 积分(${tasks.chinese.completed}/${tasks.chinese.total})`;
                 } else {
                     progressEl.textContent = '今日任务进度：加载中...';
                     // 重试加载
@@ -229,6 +306,12 @@ const ChineseGame = {
 
         // 创建新的事件监听器
         this.eventListener = (e) => {
+            // 检查成语信息区域是否可见，如果可见则禁止字符选择
+            const idiomInfo = document.querySelector('.idiom-info');
+            if (idiomInfo && idiomInfo.style.display !== 'none') {
+                return;
+            }
+
             if (e.target.hasAttribute('data-id') && e.target.hasAttribute('data-char')) {
                 const id = parseInt(e.target.dataset.id);
                 const char = e.target.dataset.char;
@@ -238,14 +321,6 @@ const ChineseGame = {
 
         // 添加新的事件监听器
         gameContent.addEventListener('click', this.eventListener);
-
-        // 单个字符回退功能
-        const backspaceBtn = document.getElementById('backspace-char');
-        if (backspaceBtn) {
-            backspaceBtn.addEventListener('click', () => {
-                this.backspaceChar();
-            });
-        }
 
         // 下一个成语
         const nextBtn = document.getElementById('next-idiom');
@@ -258,30 +333,50 @@ const ChineseGame = {
 
     // 选择字符
     selectChar(id, char) {
-        // 找到第一个空位置
-        const emptyIndex = this.userAnswer.indexOf(undefined);
-        if (emptyIndex === -1) return;
-
-        // 填充字符
-        this.userAnswer[emptyIndex] = char;
-
-        // 更新界面
-        const charEl = document.querySelector(`[data-index="${emptyIndex}"]`);
-        charEl.textContent = char;
-
-        // 更新背景颜色（已填充状态）
-        charEl.style.backgroundColor = '#e3f2fd';
-
         // 更新字符选项状态
         const option = this.charOptions.find(opt => opt.id === id);
         if (option) {
-            option.used = true;
-            option.position = emptyIndex;
+            // 切换选择状态
+            option.selected = !option.selected;
 
-            // 隐藏已选择的字符
+            // 更新界面样式
             const optionEl = document.querySelector(`[data-id="${id}"]`);
             if (optionEl) {
-                optionEl.style.display = 'none';
+                if (option.selected) {
+                    // 添加选择状态样式
+                    optionEl.style.backgroundColor = '#ffebee';
+                    optionEl.style.borderColor = '#ff4444';
+
+                    // 找到第一个空位置并填充字符
+                    const emptyIndex = this.userAnswer.indexOf(undefined);
+                    if (emptyIndex !== -1) {
+                        // 填充字符
+                        this.userAnswer[emptyIndex] = char;
+                        option.position = emptyIndex;
+
+                        // 更新界面 - 不添加选择状态样式
+                        const charEl = document.querySelector(`[data-index="${emptyIndex}"]`);
+                        charEl.textContent = char;
+                        // 保持原有样式，不添加选择状态
+                    }
+                } else {
+                    // 移除选择状态样式
+                    optionEl.style.backgroundColor = 'white';
+                    optionEl.style.borderColor = '#4a90e2';
+
+                    // 移除答题区对应位置的字符
+                    if (option.position !== null) {
+                        this.userAnswer[option.position] = undefined;
+
+                        // 更新界面
+                        const charEl = document.querySelector(`[data-index="${option.position}"]`);
+                        if (charEl) {
+                            charEl.textContent = '';
+                        }
+
+                        option.position = null;
+                    }
+                }
             }
         }
 
@@ -290,69 +385,6 @@ const ChineseGame = {
         if (allFilled) {
             this.checkAnswer();
         }
-    },
-
-    // 单个字符回退功能
-    backspaceChar() {
-        // 找到最后一个已填充的字符索引
-        let lastFilledIndex = -1;
-        for (let i = this.userAnswer.length - 1; i >= 0; i--) {
-            if (this.userAnswer[i] !== undefined) {
-                lastFilledIndex = i;
-                break;
-            }
-        }
-
-        // 如果没有已填充的字符，则返回
-        if (lastFilledIndex === -1) return;
-
-        // 找到对应的字符选项
-        const option = this.charOptions.find(opt => opt.used && opt.position === lastFilledIndex);
-        if (option) {
-            // 更新字符选项状态
-            option.used = false;
-            option.position = null;
-
-            // 显示被隐藏的字符选项
-            const optionEl = document.querySelector(`[data-id="${option.id}"]`);
-            if (optionEl) {
-                optionEl.style.display = 'flex';
-            }
-        }
-
-        // 清空用户答案
-        this.userAnswer[lastFilledIndex] = undefined;
-
-        // 更新界面 - 完全重置元素样式
-        const charEl = document.querySelector(`[data-index="${lastFilledIndex}"]`);
-        if (charEl) {
-            // 清空文本
-            charEl.textContent = '';
-
-            // 完全重置所有样式，确保居中
-            charEl.style.width = '60px';
-            charEl.style.height = '60px';
-            charEl.style.border = '2px solid #4a90e2';
-            charEl.style.borderRadius = '10px';
-            charEl.style.backgroundColor = '#f8f9fa';
-            charEl.style.fontSize = '24px';
-            charEl.style.fontWeight = 'bold';
-            charEl.style.fontFamily = 'Arial, "Microsoft YaHei", sans-serif';
-            charEl.style.color = '#333';
-            charEl.style.textAlign = 'center';
-            charEl.style.lineHeight = '60px';
-            charEl.style.padding = '0';
-            charEl.style.margin = '0';
-            charEl.style.boxSizing = 'border-box';
-        }
-
-        // 移除修改按钮（如果存在）
-        const modifyBtn = document.getElementById('modify-answer');
-        if (modifyBtn) {
-            modifyBtn.remove();
-        }
-
-        console.log('回退成功：删除了第', lastFilledIndex + 1, '个字符');
     },
 
     // 检查答案
@@ -369,100 +401,125 @@ const ChineseGame = {
             // 显示正确反馈
             Helper.showMessage('回答正确！', 'success');
 
-            // 更新每日任务进度
-            const tasks = await Storage.updateDailyTask('chinese', 'idiom', 1);
-            const config = await Config.getSubjectConfig('chinese');
+            // 如果是错题复习模式，从错题集中移除
+            if (this.isReviewMode) {
+                // 获取当前错题集
+                const wrongAnswers = await Storage.getTodayWrongAnswers('chinese');
 
-            // 检查是否完成今日所有成语任务
-            const isCompleted = await Storage.checkTaskCompletion('chinese');
+                // 过滤掉当前已答对的错题
+                const updatedWrongAnswers = wrongAnswers.filter(answer => answer.questionId !== this.currentGame.id);
 
-            if (isCompleted) {
-                // 完成所有任务，奖励积分
-                await Storage.updatePoints(config.rewardPoints);
-                document.getElementById('game-points').textContent = config.rewardPoints;
-                Helper.showMessage(`恭喜完成今日${config.dailyCount}个成语任务！获得${config.rewardPoints}积分奖励！`, 'success');
+                // 更新用户数据中的错题集
+                const user = await Storage.getUser();
+                const today = new Date().toISOString().split('T')[0];
+                user.wrongAnswers[today].chinese = updatedWrongAnswers;
+                await Storage.saveUser(user);
+
+                // 检查是否还有错题
+                if (updatedWrongAnswers.length > 0) {
+                    Helper.showMessage(`错题复习：已答对${wrongAnswers.length - updatedWrongAnswers.length}/${wrongAnswers.length}题`, 'info');
+                }
             } else {
-                // 未完成所有任务，显示进度
-                const progress = tasks.chinese.completed;
-                const total = tasks.chinese.total;
-                document.getElementById('game-points').textContent = '5'; // 每答对一个成语获得临时积分显示
-                Helper.showMessage(`已完成${progress}/${total}个成语`, 'info');
+                // 正常模式，更新每日任务进度
+                const user = await Storage.getUser();
+                // 将当前成语添加到已使用列表
+                if (!user.dailyTasks.chinese.usedIdioms.includes(this.currentGame.id)) {
+                    user.dailyTasks.chinese.usedIdioms.push(this.currentGame.id);
+                    await Storage.saveUser(user);
+                }
+
+                const tasks = await Storage.updateDailyTask('chinese', 'idiom', 1);
+                const config = await Config.getSubjectConfig('chinese');
+
+                // 检查是否完成今日所有成语任务
+                const isCompleted = await Storage.checkTaskCompletion('chinese');
+
+                if (isCompleted) {
+                    // 完成所有任务，奖励积分
+                    await Storage.updatePoints(config.rewardPoints);
+                    document.getElementById('game-points').textContent = config.rewardPoints;
+                    Helper.showMessage(`恭喜完成今日${config.dailyCount}个成语任务！获得${config.rewardPoints}积分奖励！`, 'success');
+                } else {
+                    // 未完成所有任务，显示进度
+                    const progress = tasks.chinese.completed;
+                    const total = tasks.chinese.total;
+                    document.getElementById('game-points').textContent = '5'; // 每答对一个成语获得临时积分显示
+                    Helper.showMessage(`已完成${progress}/${total}个成语`, 'info');
+                }
             }
 
             // 显示成语信息
             document.querySelector('.idiom-info').style.display = 'block';
         } else {
             // 显示错误反馈
-            Helper.showMessage('回答错误，请修改！', 'error');
+            Helper.showMessage('回答错误！', 'error');
 
-            // 高亮显示错误的字符
+            // 保存错题记录（只有在正常模式下才保存）
+            if (!this.isReviewMode) {
+                await Storage.saveWrongAnswer(
+                    'chinese',
+                    this.currentGame.id,
+                    this.currentGame.idiom,
+                    userAnswer,
+                    this.currentGame.idiom
+                );
+            }
+
+            // 将当前成语添加到已使用列表（无论答对答错，正常模式下都不重复出现）
+            if (!this.isReviewMode) {
+                const user = await Storage.getUser();
+                if (!user.dailyTasks.chinese.usedIdioms.includes(this.currentGame.id)) {
+                    user.dailyTasks.chinese.usedIdioms.push(this.currentGame.id);
+                    await Storage.saveUser(user);
+                }
+            }
+
+            // 显示正确答案
             const idiomChars = this.currentGame.idiom.split('');
-            this.userAnswer.forEach((char, index) => {
-                if (char !== idiomChars[index]) {
-                    const charEl = document.querySelector(`[data-index="${index}"]`);
-                    if (charEl) {
-                        charEl.style.borderColor = '#ff4444';
-                        charEl.style.backgroundColor = '#ffebee';
-                    }
+            idiomChars.forEach((char, index) => {
+                const charEl = document.querySelector(`[data-index="${index}"]`);
+                if (charEl) {
+                    charEl.textContent = char;
+                    charEl.style.color = '#2e7d32'; // 绿色显示正确答案
+                    charEl.style.borderColor = '#2e7d32';
+                    charEl.style.backgroundColor = '#e8f5e9';
                 }
             });
 
-            // 显示修改按钮
-            const charOptionsContainer = document.querySelector('.char-options');
-
-            // 确保容器存在
-            if (charOptionsContainer) {
-                // 添加修改按钮
-                const modifyBtn = document.createElement('button');
-                modifyBtn.id = 'modify-answer';
-                modifyBtn.className = 'btn btn-primary';
-                modifyBtn.textContent = '修改答案';
-                modifyBtn.style.marginTop = '20px';
-                modifyBtn.style.padding = '10px 20px';
-                modifyBtn.style.borderRadius = '20px';
-                modifyBtn.style.border = 'none';
-                modifyBtn.style.cursor = 'pointer';
-                modifyBtn.style.backgroundColor = '#4a90e2';
-                modifyBtn.style.color = 'white';
-                modifyBtn.style.fontSize = '16px';
-
-                // 添加到容器的末尾
-                charOptionsContainer.appendChild(modifyBtn);
-
-                console.log('修改按钮已添加');
-
-                // 添加修改按钮事件监听
-                modifyBtn.addEventListener('click', () => {
-                    this.init();
-                });
-
-                // 添加已选字符点击重置功能
-                const idiomCharEls = document.querySelectorAll('.idiom-char');
-                idiomCharEls.forEach((el, index) => {
-                    el.addEventListener('click', () => {
-                        if (this.userAnswer[index]) {
-                            // 显示被隐藏的字符选项
-                            const char = this.userAnswer[index];
-                            const optionEl = document.querySelector(`.char-option[data-char="${char}"]`);
-                            if (optionEl) {
-                                optionEl.style.display = 'inline-block';
-                            }
-
-                            // 清空用户答案
-                            this.userAnswer[index] = undefined;
-                            el.textContent = '';
-                            el.classList.remove('filled', 'error');
-
-                            // 移除修改按钮
-                            if (modifyBtn) {
-                                modifyBtn.remove();
-                            }
-                        }
-                    });
-                });
-            } else {
-                console.error('未找到char-options容器');
-            }
+            // 停顿3秒后显示下一题
+            setTimeout(() => {
+                this.init();
+            }, 3000);
         }
+    },
+
+    // 游戏结束
+    gameOver(message) {
+        const gameContent = document.getElementById('game-content');
+
+        gameContent.innerHTML = `
+            <div class="game-over" style="width: 100%; max-width: 600px; margin: 0 auto; padding: 20px; text-align: center; box-sizing: border-box;">
+                <h2>游戏结束！</h2>
+                <p style="font-size: 18px; margin-bottom: 30px;">${message}</p>
+                <button id="play-again" style="padding: 15px 30px; font-size: 18px; border-radius: 25px; cursor: pointer; border: none; background-color: #4a90e2; color: white; font-weight: bold; transition: all 0.3s ease; margin: 10px;">
+                    再玩一次
+                </button>
+                <button id="back-to-home" style="padding: 15px 30px; font-size: 18px; border-radius: 25px; cursor: pointer; border: 2px solid #4a90e2; background-color: white; color: #4a90e2; font-weight: bold; transition: all 0.3s ease; margin: 10px;">
+                    返回首页
+                </button>
+            </div>
+        `;
+
+        // 添加事件监听
+        document.getElementById('play-again').addEventListener('click', () => {
+            // 重置状态
+            this.isReviewMode = false;
+            this.wrongAnswers = [];
+            this.init();
+        });
+
+        document.getElementById('back-to-home').addEventListener('click', () => {
+            window.location.href = 'index.html';
+        });
     }
-};
+}

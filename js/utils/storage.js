@@ -24,7 +24,8 @@ const Storage = {
                 date: today,
                 chinese: {
                     completed: 0,
-                    total: config.gameSettings.chinese.dailyCount || 5
+                    total: config.gameSettings.chinese.dailyCount || 5,
+                    usedIdioms: [] // 记录当日已使用的成语ID
                 }, // 从配置中获取每日成语数目
                 math: {
                     addition: {
@@ -163,6 +164,61 @@ const Storage = {
             user.totalPoints += points;
             return await this.saveUser(user);
         }
+        return null;
+    },
+
+    // 保存错题
+    async saveWrongAnswer(subject, questionId, question, userAnswer, correctAnswer) {
+        const user = await this.getUser();
+        const today = new Date().toISOString().split('T')[0];
+
+        // 初始化错题集
+        if (!user.wrongAnswers) {
+            user.wrongAnswers = {};
+        }
+
+        if (!user.wrongAnswers[today]) {
+            user.wrongAnswers[today] = {};
+        }
+
+        if (!user.wrongAnswers[today][subject]) {
+            user.wrongAnswers[today][subject] = [];
+        }
+
+        // 添加错题记录
+        user.wrongAnswers[today][subject].push({
+            questionId,
+            question,
+            userAnswer,
+            correctAnswer,
+            timestamp: new Date().toISOString()
+        });
+
+        return await this.saveUser(user);
+    },
+
+    // 获取今日错题
+    async getTodayWrongAnswers(subject) {
+        const user = await this.getUser();
+        const today = new Date().toISOString().split('T')[0];
+
+        if (user.wrongAnswers && user.wrongAnswers[today] && user.wrongAnswers[today][subject]) {
+            return user.wrongAnswers[today][subject];
+        }
+
+        return [];
+    },
+
+    // 清空今日错题
+    async clearTodayWrongAnswers(subject) {
+        const user = await this.getUser();
+        const today = new Date().toISOString().split('T')[0];
+
+        if (user.wrongAnswers && user.wrongAnswers[today] && user.wrongAnswers[today][subject]) {
+            user.wrongAnswers[today][subject] = [];
+            return await this.saveUser(user);
+        }
+
         return null;
     }
 };

@@ -81,6 +81,34 @@
     .wish-actions {
         flex-direction: column;
     }
+    
+    /* 页签在小屏幕上的适配 */
+    .operation-tabs {
+        gap: 5px;
+        margin-right: 10px;
+    }
+    
+    .tab-btn {
+        padding: 8px 10px;
+        font-size: 11px;
+        min-width: 60px;
+    }
+    
+    /* 游戏容器样式调整 */
+    .math-game,
+    .english-game,
+    .chinese-game {
+        flex-direction: row;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        padding-bottom: 100px; /* 为键盘预留空间 */
+    }
+    
+    /* 确保内容区域可以滚动 */
+    .game-content {
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch; /* 优化iOS滚动体验 */
+    }
 }
 
 /* 平板屏幕适配 */
